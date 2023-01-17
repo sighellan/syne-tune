@@ -28,28 +28,35 @@ from syne_tune.optimizer.schedulers.searchers.bayesopt.gpautograd.kernel import 
     KernelFunction,
     RangeKernelFunction,
 )
+from syne_tune.config_space import (
+    Categorical,
+    Ordinal,
+    OrdinalNearestNeighbor,
+)
 
 
 def create_hp_ranges_for_warmstarting(**kwargs) -> HyperparameterRanges:
     """
-    See :class:`GPFIFOSearcher` for details on transfer_learning_task_attr',
-    'transfer_learning_active_task', 'transfer_learning_active_config_space'
+    See :class:`~syne_tune.optimizer.schedulers.searchers.GPFIFOSearcher` for
+    details on "transfer_learning_task_attr",
+    "transfer_learning_active_task", "transfer_learning_active_config_space"
     as optional fields in ``kwargs``. If given, they determine
     ``active_config_space`` and ``prefix_keys`` of ``hp_ranges`` created here,
-    and they also places constraints on 'config_space'.
+    and they also place constraints on ``config_space``.
 
     This function is not only called in ``gp_searcher_factory`` to create
-    ``hp_ranges`` for a new :class:`GPFIFOSearcher` object. It is also needed to
-    create the ``TuningJobState`` containing the data to be used in warmstarting.
-
+    ``hp_ranges`` for a new
+    :class:`~syne_tune.optimizer.schedulers.searchers.GPFIFOSearcher` object. It
+    is also needed to create the
+    :class:`~syne_tune.optimizer.schedulers.searchers.bayesopt.datatypes.tuning_job_state.TuningJobState`
+    object containing the data to be used in warmstarting.
     """
+
     task_attr = kwargs.get("transfer_learning_task_attr")
     config_space = kwargs["config_space"]
     prefix_keys = None
     active_config_space = None
     if task_attr is not None:
-        from syne_tune.config_space import Categorical
-
         active_task = kwargs.get("transfer_learning_active_task")
         assert (
             active_task is not None
@@ -58,6 +65,9 @@ def create_hp_ranges_for_warmstarting(**kwargs) -> HyperparameterRanges:
         assert isinstance(
             hp_range, Categorical
         ), f"config_space[{task_attr}] must be a categorical parameter"
+        assert not isinstance(
+            hp_range, OrdinalNearestNeighbor
+        ), f"config_space[{task_attr}] must not be OrdinalNearestNeighbor"
         assert active_task in hp_range.categories, (
             f"'{active_task}' must be value in config_space[{task_attr}] "
             + f"(values: {hp_range.categories})"
@@ -68,7 +78,10 @@ def create_hp_ranges_for_warmstarting(**kwargs) -> HyperparameterRanges:
             active_config_space = config_space
         # The parameter ``task_attr`` in ``active_config_space`` must be restricted
         # to ``active_task`` as a single value
-        task_param = Categorical(categories=[active_task])
+        if isinstance(hp_range, Ordinal):
+            task_param = Ordinal(categories=[active_task])
+        else:
+            task_param = Categorical(categories=[active_task])
         active_config_space = dict(active_config_space, **{task_attr: task_param})
     return make_hyperparameter_ranges(
         config_space, active_config_space=active_config_space, prefix_keys=prefix_keys

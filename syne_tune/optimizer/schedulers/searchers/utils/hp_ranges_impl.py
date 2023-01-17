@@ -517,16 +517,52 @@ class HyperparameterRangeOrdinalEqual(HyperparameterRangeCategorical):
 
     :param name: Name of hyperparameter
     :param choices: Values parameter can take
+    :param active_choices: If given, must be nonempty contiguous
+        subsequence of ``choices``.
     """
 
-    def __init__(self, name: str, choices: Tuple[Any, ...]):
+    def __init__(
+        self,
+        name: str,
+        choices: Tuple[Any, ...],
+        active_choices: Optional[Tuple[Any, ...]] = None,
+    ):
         super().__init__(name, choices)
+        active_lower_bound = self._assert_choices_and_active_choices(
+            choices, active_choices
+        )
+        if active_choices is not None:
+            active_upper_bound = active_lower_bound + len(active_choices) - 1
+        else:
+            active_upper_bound = None
         self._range_int = HyperparameterRangeInteger(
             name=name + "_INTERNAL",
             lower_bound=0,
             upper_bound=self.num_choices - 1,
             scaling=LinearScaling(),
+            active_lower_bound=active_lower_bound,
+            active_upper_bound=active_upper_bound,
         )
+
+    @staticmethod
+    def _assert_choices_and_active_choices(
+        choices: Tuple[Any, ...],
+        active_choices: Optional[Tuple[Any, ...]] = None
+    ) -> Optional[int]:
+        HyperparameterRangeCategorical._assert_choices(choices)
+        firstpos = None
+        if active_choices is not None:
+            HyperparameterRangeCategorical._assert_choices(active_choices)
+            err_msg = (
+                f"active_choices = {active_choices} not contiguous subsequence "
+                f"of choices = {choices}"
+            )
+            try:
+                firstpos = choices.index(active_choices[0])
+                assert all(a == b for a, b in zip(active_choices, choices[firstpos:])), err_msg
+            except ValueError:
+                raise AssertionError(err_msg)
+        return firstpos
 
     def to_ndarray(self, hp: Hyperparameter) -> np.ndarray:
         self._assert_value_type(hp)
@@ -612,10 +648,10 @@ class HyperparameterRangesImpl(HyperparameterRanges):
 
     def __init__(
         self,
-        config_space: Dict,
+        config_space: dict,
         name_last_pos: str = None,
         value_for_last_pos=None,
-        active_config_space: Dict = None,
+        active_config_space: dict = None,
         prefix_keys: Optional[List[str]] = None,
     ):
         super().__init__(
@@ -634,24 +670,20 @@ class HyperparameterRangesImpl(HyperparameterRanges):
                 kwargs = dict()
                 is_in_active = name in self.active_config_space
                 num_categories = len(hp_range.categories)
-                if isinstance(hp_range, Ordinal):
+                if isinstance(hp_range, OrdinalNearestNeighbor) and num_categories > 1:
                     assert (
                         not is_in_active
-                    ), f"Parameter '{name}' of type Ordinal cannot be used in active_config_space"
-                    if (
-                        isinstance(hp_range, OrdinalNearestNeighbor)
-                        and num_categories > 1
-                    ):
-                        _cls = HyperparameterRangeOrdinalNearestNeighbor
-                        kwargs["log_scale"] = hp_range.log_scale
-                    else:
-                        _cls = HyperparameterRangeOrdinalEqual
+                    ), f"Parameter '{name}' of type OrdinalNearestNeighbor cannot be used in active_config_space"
+                    _cls = HyperparameterRangeOrdinalNearestNeighbor
+                    kwargs["log_scale"] = hp_range.log_scale
                 else:
                     if is_in_active:
                         kwargs["active_choices"] = tuple(
                             self.active_config_space[name].categories
                         )
-                    if num_categories == 2:
+                    if isinstance(hp_range, Ordinal):
+                        _cls = HyperparameterRangeOrdinalEqual
+                    elif num_categories == 2:
                         _cls = HyperparameterRangeCategoricalBinary
                     else:
                         _cls = HyperparameterRangeCategoricalNonBinary
