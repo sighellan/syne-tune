@@ -114,6 +114,20 @@ class SearcherWithRandomSeed(BaseSearcher):
     def set_random_state(self, random_state: np.random.RandomState):
         self.random_state = random_state
 
+    def filter_restrict_configurations(self, restrict_configurations, config_space):
+        remove_rc = []
+        for pos, config in enumerate(restrict_configurations):
+            for key in config:
+                if not config_space[key].is_valid(config[key]):
+                    remove_rc.append(pos)
+                    continue
+
+        return [
+            config
+            for pos, config in enumerate(restrict_configurations)
+            if pos not in remove_rc
+        ]
+
     def _filter_points_to_evaluate(
         self,
         restrict_configurations: List[Dict[str, Any]],
@@ -236,8 +250,13 @@ class SearcherWithRandomSeedAndFilterDuplicates(SearcherWithRandomSeed):
             self._restrict_configurations = None
             self._rc_returned_pos = None
         else:
+            filtered_restrict_configurations = self.filter_restrict_configurations(
+                restrict_configurations, self.config_space
+            )
             self._restrict_configurations = self._filter_points_to_evaluate(
-                restrict_configurations, self._hp_ranges, self._allow_duplicates
+                filtered_restrict_configurations,
+                self._hp_ranges,
+                self._allow_duplicates,
             )
             self._rc_returned_pos = set()
 
