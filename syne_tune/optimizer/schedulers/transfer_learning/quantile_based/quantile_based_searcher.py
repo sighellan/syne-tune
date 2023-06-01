@@ -11,7 +11,7 @@
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 import numpy as np
 import xgboost
 from sklearn.model_selection import train_test_split
@@ -144,6 +144,7 @@ class QuantileBasedSurrogateSearcher(SearcherWithRandomSeed):
         mode: Optional[str] = None,
         max_fit_samples: int = 100000,
         normalization: str = "gaussian",
+        restrict_configurations: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
     ):
         super(QuantileBasedSurrogateSearcher, self).__init__(
@@ -153,6 +154,7 @@ class QuantileBasedSurrogateSearcher(SearcherWithRandomSeed):
             **kwargs,
         )
         self.mode = mode
+        self._restrict_configurations = restrict_configurations
         self.model_pipeline, sigma_train, sigma_val = fit_model(
             config_space=config_space,
             transfer_learning_evaluations=transfer_learning_evaluations,
@@ -166,10 +168,13 @@ class QuantileBasedSurrogateSearcher(SearcherWithRandomSeed):
 
         with catchtime("time to predict"):
             # note the candidates could also be sampled every time, we cache them rather to save compute time.
-            num_candidates = 100000
-            self.X_candidates = pd.DataFrame(
-                [self._sample_random_config() for _ in range(num_candidates)]
-            )
+            if self._restrict_configurations:
+                self.X_candidates = pd.DataFrame(self._restrict_configurations)
+            else:
+                num_candidates = 100000
+                self.X_candidates = pd.DataFrame(
+                    [self._sample_random_config() for _ in range(num_candidates)]
+                )
             self.mu_pred = self.model_pipeline.predict(self.X_candidates)
             # simple homoskedastic variance estimate for now
             if self.mu_pred.ndim == 1:

@@ -11,7 +11,7 @@
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 
 import pandas as pd
 import xgboost
@@ -62,6 +62,7 @@ class ZeroShotTransfer(TransferLearningMixin, SearcherWithRandomSeed):
         mode: str = "min",
         sort_transfer_learning_evaluations: bool = True,
         use_surrogates: bool = False,
+        restrict_configurations: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
     ) -> None:
         if "points_to_evaluate" in kwargs:
@@ -74,6 +75,7 @@ class ZeroShotTransfer(TransferLearningMixin, SearcherWithRandomSeed):
             **kwargs,
         )
         self._mode = mode
+        self._restrict_configurations = restrict_configurations
         if use_surrogates and len(transfer_learning_evaluations) <= 1:
             use_surrogates = False
             sort_transfer_learning_evaluations = False
@@ -143,12 +145,15 @@ class ZeroShotTransfer(TransferLearningMixin, SearcherWithRandomSeed):
             estimator.fit(X_train, y_train)
 
             num_candidates = 10000 if len(config_space) >= 6 else 5 ** len(config_space)
-            hyperparameters_new = pd.DataFrame(
-                [
-                    self._sample_random_config(config_space)
-                    for _ in range(num_candidates)
-                ]
-            )
+            if self._restrict_configurations:
+                hyperparameters_new = pd.DataFrame(self._restrict_configurations)
+            else:
+                hyperparameters_new = pd.DataFrame(
+                    [
+                        self._sample_random_config(config_space)
+                        for _ in range(num_candidates)
+                    ]
+                )
             objectives_evaluations_new = estimator.predict(hyperparameters_new).reshape(
                 -1, 1, 1, 1
             )
