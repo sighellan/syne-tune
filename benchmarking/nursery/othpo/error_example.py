@@ -1,3 +1,15 @@
+# Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# A copy of the License is located at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the "license" file accompanying this file. This file is distributed
+# on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+# express or implied. See the License for the specific language governing
+# permissions and limitations under the License.
 from experiment_master_file import experiments_meta_dict
 from backend_definitions_dict import BACKEND_DEFS
 from blackbox_helper import (
@@ -8,13 +20,13 @@ from blackbox_helper import (
 
 # You will have to run the two generate_[...].py scripts in simopt/
 
-experiment = 'SimOpt'
+experiment = "SimOpt"
 optimiser_set = [("BoundingBox", "Transfer")]
 experiment_meta_data = experiments_meta_dict[experiment]
-backend = experiment_meta_data['backend']
+backend = experiment_meta_data["backend"]
 optimiser, optimiser_type = optimiser_set[0]
 
-simopt_backend_file = experiment_meta_data['simopt_backend_file']
+simopt_backend_file = experiment_meta_data["simopt_backend_file"]
 yahpo_dataset, yahpo_scenario = None, None
 xgboost_res_file = None
 
